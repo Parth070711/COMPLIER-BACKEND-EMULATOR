@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Compiler Output</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #fff;
+      font-family: Consolas, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    h1 { color: #fff; margin-bottom: 20px; }
+    .container { display: flex; flex-direction: column; gap: 20px; width: 90%; max-width: 900px; }
+    .box { width: 100%; background-color: #0a0a14; border: 2px solid #001a66; border-radius: 12px; padding: 15px; }
+    .box h2 { color: #fff; border-bottom: 1px solid #001a66; padding-bottom: 5px; text-align: center; margin-top: 0; }
+    .box pre { color: #00ff99; background-color: #000814; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 1em; }
+    button { margin-top: 20px; padding: 10px 25px; background-color: #001a66; color: #fff; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+    button:hover { background-color: #003399; }
+  </style>
+</head>
+<body>
+
+<h1>Compiler Output</h1>
+
+<div class="container">
+  <div class="box"><h2>Intermediate Representation (IR)</h2><pre id="irOutput"></pre></div>
+  <div class="box"><h2>Optimized IR (via DAG)</h2><pre id="dagOutput"></pre></div>
+  <div class="box"><h2>Symbol Table (Hash Table)</h2><pre id="symbolTableOutput"></pre></div>
+  <div class="box"><h2>Assembly Code</h2><pre id="assemblyOutput"></pre></div>
+  <div class="box"><h2>Pipeline Simulation</h2><pre id="pipelineOutput"></pre></div>
+  <div class="box"><h2>Final Result</h2><pre id="resultOutput"></pre></div>
+</div>
+
+<button onclick="window.location.href='index.html'">Back to Editor</button>
+
+<script>
+const code = localStorage.getItem("sourceCode") || "";
+if (!code) alert("No code found. Go back to input page.");
+
+const variables = {};
+
+// ---- Functions ---- //
+function generateIR(line){
+  const [lhs,rhs] = line.split('=').map(x=>x.trim());
+  return `t1 = ${rhs}\n${lhs} = t1`;
+}
+
+function optimizeIR(line){
+  const [lhs,rhs] = line.split('=').map(x=>x.trim());
+  let expr = rhs.replace(/\b[a-zA-Z_]\w*\b/g, v => variables[v] ?? v);
+  try {
+    const val = eval(expr);
+    if (!isNaN(val)) {
+      variables[lhs] = val;
+      return `t1 = ${val}\n${lhs} = t1\n# Optimized to\n${lhs} = ${val}`;
+    }
+  } catch {}
+  return generateIR(line);
+}
+
+function generateSymbolTable(lhs,val){
+  return `Symbol\tType\tValue\tMemory Address\tScope\n${lhs}\tint\t${val}\t0x1000\tglobal`;
+}
+
+function generateAssembly(lhs,rhs){
+  const expr = rhs.replace(/\b[a-zA-Z_]\w*\b/g,v=>variables[v] ?? v);
+  const tokens = expr.match(/\d+(\.\d+)?|[+\-*/]/g) || [];
+  let asm = [];
+  if(tokens.length === 3){
+    asm.push(`MOV R1, ${tokens[0]}`);
+    if(tokens[1]==='+') asm.push(`ADD R1, ${tokens[2]}`);
+    else if(tokens[1]==='-') asm.push(`SUB R1, ${tokens[2]}`);
+    else if(tokens[1]==='*') asm.push(`MUL R1, ${tokens[2]}`);
+    else if(tokens[1]==='/') asm.push(`DIV R1, ${tokens[2]}`);
+    asm.push(`MOV [${lhs}], R1`);
+  } else {
+    asm.push(`MOV R1, ${expr}`);
+    asm.push(`MOV [${lhs}], R1`);
+  }
+  return asm;
+}
+
+// Instruction-level pipeline
+function pipelineSimulationInstructions(allInstrs){
+  const stages = ["IF","ID","EX","MEM","WB"];
+  let output = "Cycle\t" + stages.join("\t") + "\n";
+  const total = allInstrs.length + stages.length - 1;
+  for(let cycle=1; cycle<=total; cycle++){
+    let row = cycle + "\t";
+    for(let s=0;s<stages.length;s++){
+      const instrIndex = cycle - s;
+      if(instrIndex >=1 && instrIndex <= allInstrs.length) row += "I"+instrIndex+"\t";
+      else row += "-\t";
+    }
+    output += row + "\n";
+  }
+  return output;
+}
+
+// Statement-level pipeline
+function pipelineSimulationStatements(lines){
+  const stages = ["IF","ID","EX","MEM","WB"];
+  let output = "Cycle\t" + stages.join("\t") + "\n";
+  const total = lines.length + stages.length - 1;
+  for(let cycle=1; cycle<=total; cycle++){
+    let row = cycle + "\t";
+    for(let s=0;s<stages.length;s++){
+      const instrIndex = cycle - s;
+      if(instrIndex >=1 && instrIndex <= lines.length) row += "I"+instrIndex+"\t";
+      else row += "-\t";
+    }
+    output += row + "\n";
+  }
+  return output;
+}
+
+function evaluateResult(line){
+  const [lhs,rhs] = line.split('=').map(x=>x.trim());
+  try{
+    const val = eval(rhs.replace(/\b[a-zA-Z_]\w*\b/g,v=>variables[v]));
+    return `${lhs} = ${val}`;
+  }catch{return `${lhs} = Error`;}
+}
+
+// ---- Main Execution ---- //
+const lines = code.split('\n').filter(l=>l.trim()!=="");
+let fullIR="", fullOpt="", fullSym="", fullAsm="", allAsmInstrs=[], fullRes="";
+
+lines.forEach((line,index)=>{
+  const [lhs,rhs] = line.split('=').map(x=>x.trim());
+  fullIR += `# Statement ${index+1}\n${generateIR(line)}\n\n`;
+  fullOpt += `# Statement ${index+1}\n${optimizeIR(line)}\n\n`;
+  const val = variables[lhs] ?? eval(rhs.replace(/\b[a-zA-Z_]\w*\b/g,v=>variables[v]));
+  fullSym += generateSymbolTable(lhs,val)+"\n\n";
+
+  const asm = generateAssembly(lhs,rhs);
+  fullAsm += `# Statement ${index+1}\n${asm.join("\n")}\n\n`;
+  allAsmInstrs.push(...asm);
+
+  fullRes += evaluateResult(line)+"\n";
+});
+
+// ---- Generate both pipelines ---- //
+const pipelineInstrLevel = pipelineSimulationInstructions(allAsmInstrs);
+const pipelineStmtLevel = pipelineSimulationStatements(lines);
+
+// ---- Display ---- //
+document.getElementById("irOutput").innerText = fullIR.trim();
+document.getElementById("dagOutput").innerText = fullOpt.trim();
+document.getElementById("symbolTableOutput").innerText = fullSym.trim();
+document.getElementById("assemblyOutput").innerText = fullAsm.trim();
+document.getElementById("pipelineOutput").innerText = 
+  "=== Instruction-Level Pipeline ===\n" + pipelineInstrLevel + 
+  "\n=== Statement-Level Pipeline ===\n" + pipelineStmtLevel;
+document.getElementById("resultOutput").innerText = fullRes.trim();
+</script>
+
+</body>
+</html>

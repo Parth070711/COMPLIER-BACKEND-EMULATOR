@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Compiler Parth - Code Editor</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #fff;
+      font-family: Consolas, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    h1 {
+      color: #ffffff;
+      text-shadow: 0 0 12px #001a66;
+      font-size: 2em;
+      margin-bottom: 25px;
+    }
+
+    .editor-box {
+      width: 80%;
+      max-width: 800px;
+      background-color: #0a0a14;
+      border: 2px solid #001a66;
+      border-radius: 12px;
+      box-shadow: 0 0 18px #001a6666;
+      padding: 25px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    textarea {
+      width: 100%;
+      height: 250px;
+      background-color: #000814;
+      color: #00ff99;
+      border: 1px solid #001a66;
+      border-radius: 8px;
+      padding: 12px;
+      resize: none;
+      font-family: Consolas, monospace;
+      font-size: 1em;
+      outline: none;
+      box-shadow: inset 0 0 8px #001a6666;
+    }
+
+    textarea:focus {
+      border-color: #003399;
+      box-shadow: 0 0 10px #003399cc;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 30px;
+      background-color: #001a66;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1em;
+      font-weight: bold;
+      transition: 0.3s;
+      box-shadow: 0 0 15px #001a6688;
+    }
+
+    button:hover {
+      background-color: #003399;
+      box-shadow: 0 0 25px #003399cc;
+    }
+
+    footer {
+      margin-top: 25px;
+      font-size: 0.9em;
+      color: #aaa;
+      text-align: center;
+    }
+
+    footer span {
+      color: #00ff99;
+    }
+  </style>
+</head>
+<body>
+  <h1>Compiler Backend Emulator</h1>
+
+  <div class="editor-box">
+    <textarea id="codeInput" placeholder="// Enter your code here (e.g., a = 5; b = a + 2;)"></textarea>
+    <button onclick="runCode()">Run Code</button>
+  </div>
+
+  <footer>
+    Designed by <span>Parth And Aayush</span> | Compiler Backend Emulator
+  </footer>
+
+  <script>
+    function runCode() {
+      const code = document.getElementById("codeInput").value.trim();
+      if (code === "") {
+        alert("Please enter some code before running!");
+        return;
+      }
+      localStorage.setItem("sourceCode", code);
+      window.location.href = "output.html";
+    }
+  </script>
+</body>
+</html>
