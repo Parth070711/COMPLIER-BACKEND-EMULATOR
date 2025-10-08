@@ -15,11 +15,62 @@
       min-height: 100vh;
     }
     h1 { color: #fff; margin-bottom: 20px; }
-    .container { display: flex; flex-direction: column; gap: 20px; width: 90%; max-width: 900px; }
-    .box { width: 100%; background-color: #0a0a14; border: 2px solid #001a66; border-radius: 12px; padding: 15px; }
-    .box h2 { color: #fff; border-bottom: 1px solid #001a66; padding-bottom: 5px; text-align: center; margin-top: 0; }
-    .box pre { color: #00ff99; background-color: #000814; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 1em; }
-    button { margin-top: 20px; padding: 10px 25px; background-color: #001a66; color: #fff; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 90%;
+      max-width: 950px;
+    }
+    .box {
+      width: 100%;
+      background-color: #0a0a14;
+      border: 2px solid #002266;
+      border-radius: 12px;
+      padding: 15px;
+    }
+    .box h2 {
+      color: #ffffff;
+      border-bottom: 1px solid #002266;
+      padding-bottom: 5px;
+      text-align: center;
+      margin-top: 0;
+    }
+    .box pre {
+      color: #00ff99;
+      background-color: #000814;
+      padding: 10px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 1em;
+    }
+    .dag-layout {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-top: 10px;
+    }
+    .dag-left, .dag-right {
+      flex: 1;
+    }
+    .dag-right {
+      white-space: pre;
+      color: #00ffcc;
+      text-align: center;
+      border-left: 2px solid #002266;
+      padding-left: 15px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 25px;
+      background-color: #002266;
+      color: #fff;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
     button:hover { background-color: #003399; }
   </style>
 </head>
@@ -29,10 +80,11 @@
 
 <div class="container">
   <div class="box"><h2>Intermediate Representation (IR)</h2><pre id="irOutput"></pre></div>
-  <div class="box"><h2>Optimized IR (via DAG)</h2><pre id="dagOutput"></pre></div>
+  <div class="box"><h2>Optimized IR (via DAG)</h2><div id="dagOutput"></div></div>
   <div class="box"><h2>Symbol Table (Hash Table)</h2><pre id="symbolTableOutput"></pre></div>
   <div class="box"><h2>Assembly Code</h2><pre id="assemblyOutput"></pre></div>
-  <div class="box"><h2>Pipeline Simulation</h2><pre id="pipelineOutput"></pre></div>
+  <div class="box"><h2>Pipeline Simulation (Statement Level)</h2><pre id="pipelineStmtOutput"></pre></div>
+  <div class="box"><h2>Pipeline Simulation (Instruction Level)</h2><pre id="pipelineInstrOutput"></pre></div>
   <div class="box"><h2>Final Result</h2><pre id="resultOutput"></pre></div>
 </div>
 
@@ -50,17 +102,42 @@ function generateIR(line){
   return `t1 = ${rhs}\n${lhs} = t1`;
 }
 
-function optimizeIR(line){
+function generateDAGDiagram(rhs){
+  const match = rhs.match(/(\w+)\s*([\+\-\*\/])\s*(\w+)/);
+  if (match) {
+    const [, left, op, right] = match;
+    return `     (${op})\n    /   \\\n  (${left}) (${right})`;
+  } else {
+    return `(=)\n / \\\n(${rhs})`;
+  }
+}
+
+function optimizeIRWithDAG(line){
   const [lhs,rhs] = line.split('=').map(x=>x.trim());
   let expr = rhs.replace(/\b[a-zA-Z_]\w*\b/g, v => variables[v] ?? v);
+  const dag = generateDAGDiagram(rhs);
   try {
     const val = eval(expr);
     if (!isNaN(val)) {
       variables[lhs] = val;
-      return `t1 = ${val}\n${lhs} = t1\n# Optimized to\n${lhs} = ${val}`;
+      return `
+      <div class='dag-layout'>
+        <div class='dag-left'>
+          <pre># Statement\n t1 = ${expr}\n ${lhs} = t1\n\n# Optimized to\n ${lhs} = ${val}</pre>
+        </div>
+        <div class='dag-right'>${dag}</div>
+      </div>
+      `;
     }
   } catch {}
-  return generateIR(line);
+  return `
+    <div class='dag-layout'>
+      <div class='dag-left'>
+        <pre># Statement\n t1 = ${expr}\n ${lhs} = t1</pre>
+      </div>
+      <div class='dag-right'>${dag}</div>
+    </div>
+  `;
 }
 
 function generateSymbolTable(lhs,val){
@@ -85,7 +162,22 @@ function generateAssembly(lhs,rhs){
   return asm;
 }
 
-// Instruction-level pipeline
+function pipelineSimulationStatements(lines){
+  const stages = ["IF","ID","EX","MEM","WB"];
+  let output = "Cycle\t" + stages.join("\t") + "\n";
+  const total = lines.length + stages.length - 1;
+  for(let cycle=1; cycle<=total; cycle++){
+    let row = cycle + "\t";
+    for(let s=0;s<stages.length;s++){
+      const stmtIndex = cycle - s;
+      if(stmtIndex >=1 && stmtIndex <= lines.length) row += "S"+stmtIndex+"\t";
+      else row += "-\t";
+    }
+    output += row + "\n";
+  }
+  return output;
+}
+
 function pipelineSimulationInstructions(allInstrs){
   const stages = ["IF","ID","EX","MEM","WB"];
   let output = "Cycle\t" + stages.join("\t") + "\n";
@@ -95,23 +187,6 @@ function pipelineSimulationInstructions(allInstrs){
     for(let s=0;s<stages.length;s++){
       const instrIndex = cycle - s;
       if(instrIndex >=1 && instrIndex <= allInstrs.length) row += "I"+instrIndex+"\t";
-      else row += "-\t";
-    }
-    output += row + "\n";
-  }
-  return output;
-}
-
-// Statement-level pipeline
-function pipelineSimulationStatements(lines){
-  const stages = ["IF","ID","EX","MEM","WB"];
-  let output = "Cycle\t" + stages.join("\t") + "\n";
-  const total = lines.length + stages.length - 1;
-  for(let cycle=1; cycle<=total; cycle++){
-    let row = cycle + "\t";
-    for(let s=0;s<stages.length;s++){
-      const instrIndex = cycle - s;
-      if(instrIndex >=1 && instrIndex <= lines.length) row += "I"+instrIndex+"\t";
       else row += "-\t";
     }
     output += row + "\n";
@@ -129,12 +204,12 @@ function evaluateResult(line){
 
 // ---- Main Execution ---- //
 const lines = code.split('\n').filter(l=>l.trim()!=="");
-let fullIR="", fullOpt="", fullSym="", fullAsm="", allAsmInstrs=[], fullRes="";
+let fullIR="", fullOptHTML="", fullSym="", fullAsm="", allAsmInstrs=[], fullRes="";
 
 lines.forEach((line,index)=>{
   const [lhs,rhs] = line.split('=').map(x=>x.trim());
   fullIR += `# Statement ${index+1}\n${generateIR(line)}\n\n`;
-  fullOpt += `# Statement ${index+1}\n${optimizeIR(line)}\n\n`;
+  fullOptHTML += optimizeIRWithDAG(line);
   const val = variables[lhs] ?? eval(rhs.replace(/\b[a-zA-Z_]\w*\b/g,v=>variables[v]));
   fullSym += generateSymbolTable(lhs,val)+"\n\n";
 
@@ -145,20 +220,18 @@ lines.forEach((line,index)=>{
   fullRes += evaluateResult(line)+"\n";
 });
 
-// ---- Generate both pipelines ---- //
-const pipelineInstrLevel = pipelineSimulationInstructions(allAsmInstrs);
 const pipelineStmtLevel = pipelineSimulationStatements(lines);
+const pipelineInstrLevel = pipelineSimulationInstructions(allAsmInstrs);
 
-// ---- Display ---- //
 document.getElementById("irOutput").innerText = fullIR.trim();
-document.getElementById("dagOutput").innerText = fullOpt.trim();
+document.getElementById("dagOutput").innerHTML = fullOptHTML;
 document.getElementById("symbolTableOutput").innerText = fullSym.trim();
 document.getElementById("assemblyOutput").innerText = fullAsm.trim();
-document.getElementById("pipelineOutput").innerText = 
-  "=== Instruction-Level Pipeline ===\n" + pipelineInstrLevel + 
-  "\n=== Statement-Level Pipeline ===\n" + pipelineStmtLevel;
+document.getElementById("pipelineStmtOutput").innerText = pipelineStmtLevel.trim();
+document.getElementById("pipelineInstrOutput").innerText = pipelineInstrLevel.trim();
 document.getElementById("resultOutput").innerText = fullRes.trim();
 </script>
 
 </body>
 </html>
+
